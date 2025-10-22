@@ -35,6 +35,19 @@ def pay(message):
         reply_markup=markup
     )
 
+# ===========================
+#   Auto reply (echo)
+# ===========================
+@bot.message_handler(func=lambda message: True)
+def echo_all(message):
+    bot.reply_to(message, f"You said: {message.text}")
+
+# ===========================
+#   Start bot
+# ===========================
+print("✅ Bot is running...")
+bot.infinity_polling()
+
 
 from flask import Flask, request
 
@@ -60,19 +73,3 @@ if __name__ == "__main__":
     import threading
     threading.Thread(target=lambda: bot.infinity_polling()).start()
     app.run(host="0.0.0.0", port=10000)
-
-
-
-# ===========================
-#   Auto reply (echo)
-# ===========================
-@bot.message_handler(func=lambda message: True)
-def echo_all(message):
-    bot.reply_to(message, f"You said: {message.text}")
-
-# ===========================
-#   Start bot
-# ===========================
-print("✅ Bot is running...")
-bot.infinity_polling()
-
