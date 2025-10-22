@@ -95,7 +95,7 @@ def info(message):
 @bot.message_handler(commands=['contacts'])
 def contacts(message):
     chat_id = message.chat.id
-    bot.send_message(chat_id, "📞 Contacts:\nTelegram: @ChristianMadafferi\nEmail: example@email.com")
+    bot.send_message(chat_id, "📞 Contacts:\nTelegram: @SlyanuS7 \nEmail: brandingshopy@gmail.com \nInstagram: 1.chr_9")
 
 # ===========================
 #   Handle quantity selection
@@ -116,7 +116,7 @@ def select_quantity(message):
 def callback_inline(call):
     chat_id = call.message.chat.id
     if call.data == "bank_transfer":
-        bot.send_message(chat_id, "🏦 Bank Transfer details:\nIBAN: IT12A3456789012345678901234\nBIC: ABCDITMMXXX\nSend the exact amount and then confirm here.")
+        bot.send_message(chat_id, "🏦 Bank Transfer details:\nIBAN: IT62 P036 6901 6003 0102 0417 476 \nBIC: CHASDEFX \nSend the exact amount and then confirm here.")
         bot.answer_callback_query(call.id, "Bank transfer info sent.")
 
 # ===========================
