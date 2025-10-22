@@ -14,14 +14,14 @@ bot = TeleBot(TOKEN)
 # ===========================
 PRODUCTS = {
     "Saffron": {
-        "1g": 8,
-        "3g": 24,
-        "5g": 40,
-        "10g": 80,
-        "30g": 216,  # 10% off
-        "50g": 340,  # 15% off
-        "70g": 448,  # 20% off
-        "100g": 600  # 25% off
+        "1g": {"price": 8, "discount": 0},
+        "3g": {"price": 24, "discount": 0},
+        "5g": {"price": 40, "discount": 0},
+        "10g": {"price": 80, "discount": 0},
+        "30g": {"price": 216, "discount": 10},
+        "50g": {"price": 340, "discount": 15},
+        "70g": {"price": 448, "discount": 20},
+        "100g": {"price": 600, "discount": 25}
     }
 }
 
@@ -43,13 +43,15 @@ def help_command(message):
 
 @bot.message_handler(commands=['info'])
 def info_command(message):
-    info = (
-        "🌿 *Saffron Pricing*\n\n"
-        "• 1g – 8€\n• 3g – 24€\n• 5g – 40€\n• 10g – 80€\n"
-        "• 30g – 216€ (10% off)\n• 50g – 340€ (15% off)\n"
-        "• 70g – 448€ (20% off)\n• 100g – 600€ (25% off)\n\n"
-        "100% pure Italian saffron 🇮🇹"
-    )
+    info = "🌿 *Saffron Pricing List:*\n\n"
+    for grams, data in PRODUCTS["Saffron"].items():
+        price = data["price"]
+        discount = data["discount"]
+        if discount > 0:
+            info += f"• {grams} – {price}€  _(−{discount}% discount)_\n"
+        else:
+            info += f"• {grams} – {price}€\n"
+    info += "\n100% pure Italian saffron 🇮🇹"
     bot.send_message(message.chat.id, info, parse_mode="Markdown")
 
 @bot.message_handler(commands=['contacts'])
@@ -58,9 +60,13 @@ def contacts_command(message):
         "📞 *Contact Info:*\n\n"
         "👤 Admin: @ChristianMadafferi\n"
         "✉️ Email: example@email.com\n"
-        "💬 Write directly to the admin for any questions."
+        "💬 For questions, message the admin directly."
     )
     bot.send_message(message.chat.id, contact_text, parse_mode="Markdown")
+
+@bot.message_handler(commands=['cart'])
+def view_cart_cmd(message):
+    show_cart(message.chat.id, message.from_user.id)
 
 # ===========================
 #   SHOPPING FLOW
@@ -76,8 +82,13 @@ def open_shop(message):
 def choose_quantity(call):
     product = call.data.split("_")[1]
     markup = types.InlineKeyboardMarkup()
-    for grams in PRODUCTS[product].keys():
-        markup.add(types.InlineKeyboardButton(text=grams, callback_data=f"add_{product}_{grams}"))
+    for grams, data in PRODUCTS[product].items():
+        label = f"{grams} ({data['price']}€"
+        if data['discount'] > 0:
+            label += f" -{data['discount']}%)"
+        else:
+            label += ")"
+        markup.add(types.InlineKeyboardButton(text=label, callback_data=f"add_{product}_{grams}"))
     markup.add(types.InlineKeyboardButton(text="⬅️ Back", callback_data="back_main"))
     bot.edit_message_text(
         chat_id=call.message.chat.id,
@@ -90,7 +101,7 @@ def choose_quantity(call):
 @bot.callback_query_handler(func=lambda call: call.data.startswith("add_"))
 def add_to_cart(call):
     _, product, grams = call.data.split("_")
-    price = PRODUCTS[product][grams]
+    price = PRODUCTS[product][grams]["price"]
 
     if call.from_user.id not in USER_CART:
         USER_CART[call.from_user.id] = []
@@ -112,16 +123,18 @@ def add_to_cart(call):
 
 @bot.callback_query_handler(func=lambda call: call.data == "view_cart")
 def view_cart(call):
-    user_id = call.from_user.id
+    show_cart(call.message.chat.id, call.from_user.id)
+
+def show_cart(chat_id, user_id):
     if user_id not in USER_CART or len(USER_CART[user_id]) == 0:
-        bot.send_message(call.message.chat.id, "🛒 Your cart is empty.")
+        bot.send_message(chat_id, "🛒 Your cart is empty.")
         return
 
     cart_items = USER_CART[user_id]
     total = sum(item["price"] for item in cart_items)
     text = "🛍 *Your Cart:*\n\n"
     for item in cart_items:
-        text += f"- {item['product']} {item['quantity']} → {item['price']:.2f}€\n"
+        text += f"- {item['product']} {item['quantity']} → {item['price']}€\n"
     text += f"\n💰 *Total:* {total:.2f}€"
 
     markup = types.InlineKeyboardMarkup()
@@ -129,7 +142,7 @@ def view_cart(call):
     markup.add(types.InlineKeyboardButton(text="🧹 Clear Cart", callback_data="clear_cart"))
     markup.add(types.InlineKeyboardButton(text="⬅️ Back", callback_data="back_main"))
 
-    bot.send_message(call.message.chat.id, text, parse_mode="Markdown", reply_markup=markup)
+    bot.send_message(chat_id, text, parse_mode="Markdown", reply_markup=markup)
 
 @bot.callback_query_handler(func=lambda call: call.data == "clear_cart")
 def clear_cart(call):
@@ -181,9 +194,9 @@ def payment_selected(call):
     if method == "paypal":
         text = "💳 *Pay via PayPal:*\nhttps://paypal.me/ChristianMadafferi"
     elif method == "revolut":
-        text = "💸 *Pay via Revolut:*\nUsername: @christianmadafferi\nOr phone: +39XXXXXXXXXX"
+        text = "💸 *Pay via Revolut:*\nUsername: @christianmadafferi\nPhone: +39XXXXXXXXXX"
     else:
-        text = "🏦 *Bank Transfer Details:*\nIBAN: IT00A000000000000000000000\nName: Christian Madafferi\nReason: Saffron Purchase"
+        text = "🏦 *Bank Transfer:*\nIBAN: IT00A000000000000000000000\nName: Christian Madafferi\nReason: Saffron Purchase"
 
     bot.send_message(call.message.chat.id, text, parse_mode="Markdown")
 
