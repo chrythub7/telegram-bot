@@ -23,7 +23,7 @@ def start(message):
 def help_command(message):
     bot.reply_to(
         message,
-        "📖 Available commands:\n/start - Start the bot\n/help - Show this message\n/pay - Pay via PayPal"
+        "📖 Available commands:\n/start - Start the bot \n/pay - Pay via PayPal"
     )
 
 @bot.message_handler(commands=['pay'])
@@ -93,3 +93,4 @@ bot.set_webhook(url=WEBHOOK_URL)
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
+
