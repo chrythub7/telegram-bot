@@ -1,7 +1,8 @@
-from flask import Flask, request
+from flask import Flask, request, jsonify
 from telebot import TeleBot, types
 import os
 from datetime import datetime
+import stripe
 
 # ===========================
 #   Bot setup
@@ -12,6 +13,13 @@ bot = TeleBot(TOKEN)
 app = Flask(__name__)
 
 # ===========================
+#   Stripe setup
+# ===========================
+STRIPE_SECRET_KEY = "YOUR_STRIPE_SECRET_KEY"
+STRIPE_PUBLISHABLE_KEY = "YOUR_STRIPE_PUBLISHABLE_KEY"
+stripe.api_key = STRIPE_SECRET_KEY
+
+# ===========================
 #   Products and prices
 # ===========================
 PRODUCTS = {
@@ -20,15 +28,16 @@ PRODUCTS = {
         "3g": 24,
         "5g": 40,
         "10g": 80,
-        "30g": 216,   # 10% sconto
-        "50g": 320,   # 20% sconto
-        "70g": 448,   # 20% sconto
-        "100g": 600   # 25% sconto
+        "30g": 216,   # 10% discount
+        "50g": 320,   # 20% discount
+        "70g": 448,   # 20% discount
+        "100g": 600   # 25% discount
     }
 }
 
-# Cart per utente
+# Cart per user
 user_cart = {}
+user_stage = {}  # track user's section
 
 # ===========================
 #   Helper functions
@@ -39,7 +48,7 @@ def get_price(product, qty):
 def format_cart(chat_id):
     cart = user_cart.get(chat_id, [])
     if not cart:
-        return "🛒 Your cart is empty."
+        return "🛒 Your cart is empty.", 0
     text = "🛒 Your cart:\n\n"
     total = 0
     for item in cart:
@@ -47,7 +56,7 @@ def format_cart(chat_id):
         text += f"{item['product'].capitalize()} - {item['qty']} - {price}€\n"
         total += price
     text += f"\n💰 Total: {total}€"
-    return text
+    return text, total
 
 # ===========================
 #   Bot commands
@@ -56,6 +65,7 @@ def format_cart(chat_id):
 def start(message):
     chat_id = message.chat.id
     user_cart[chat_id] = []
+    user_stage[chat_id] = "start"
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     markup.add("/shop", "/cart", "/info", "/contacts")
     bot.send_message(chat_id, "👋 Welcome! Choose an option:", reply_markup=markup)
@@ -67,6 +77,7 @@ def help_command(message):
 @bot.message_handler(commands=['shop'])
 def shop(message):
     chat_id = message.chat.id
+    user_stage[chat_id] = "shop"
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     for qty in PRODUCTS["zafferano"]:
         markup.add(f"{qty}")
@@ -76,18 +87,17 @@ def shop(message):
 @bot.message_handler(commands=['cart'])
 def show_cart(message):
     chat_id = message.chat.id
-    text = format_cart(chat_id)
+    text, total = format_cart(chat_id)
     markup = types.InlineKeyboardMarkup()
-    total = sum([get_price(i['product'], i['qty']) for i in user_cart.get(chat_id, [])])
     if total > 0:
         markup.add(types.InlineKeyboardButton("💸 Pay with PayPal", url=f"https://paypal.me/ChristianMadafferi/{total}"))
-        markup.add(types.InlineKeyboardButton("🏦 Bank Transfer", callback_data="bank_transfer"))
+        markup.add(types.InlineKeyboardButton("💳 Pay with Card", callback_data="card_payment"))
     bot.send_message(chat_id, text, reply_markup=markup)
 
 @bot.message_handler(commands=['info'])
 def info(message):
     chat_id = message.chat.id
-    text = "ℹ️ Info:\nThis bot sells high quality zafferano.\nPrices:\n"
+    text = "ℹ️ Info:\nThis bot sells high-quality zafferano.\nPrices:\n"
     for qty, price in PRODUCTS["zafferano"].items():
         text += f"{qty}: {price}€\n"
     bot.send_message(chat_id, text)
@@ -103,11 +113,16 @@ def contacts(message):
 @bot.message_handler(func=lambda message: message.text in PRODUCTS["zafferano"] or message.text == "Back")
 def select_quantity(message):
     chat_id = message.chat.id
+    stage = user_stage.get(chat_id)
+    
     if message.text == "Back":
-        start(message)
+        if stage == "shop":
+            start(message)
         return
-    user_cart[chat_id].append({"product": "zafferano", "qty": message.text})
-    bot.send_message(chat_id, f"✅ Added {message.text} zafferano to cart.\nUse /cart to view your cart.")
+
+    if stage == "shop":
+        user_cart[chat_id].append({"product": "zafferano", "qty": message.text})
+        bot.send_message(chat_id, f"✅ Added {message.text} zafferano to cart.\nUse /cart to view your cart.")
 
 # ===========================
 #   Inline callbacks
@@ -118,6 +133,28 @@ def callback_inline(call):
     if call.data == "bank_transfer":
         bot.send_message(chat_id, "🏦 Bank Transfer details:\nIBAN: IT62 P036 6901 6003 0102 0417 476 \nBIC: CHASDEFX \nSend the exact amount and then confirm here.")
         bot.answer_callback_query(call.id, "Bank transfer info sent.")
+    elif call.data == "card_payment":
+        _, total = format_cart(chat_id)
+        # Create Stripe checkout session
+        line_items = []
+        for item in user_cart.get(chat_id, []):
+            line_items.append({
+                'price_data': {
+                    'currency': 'eur',
+                    'product_data': {'name': f"{item['product'].capitalize()} {item['qty']}"},
+                    'unit_amount': get_price(item['product'], item['qty'])*100,  # in cents
+                },
+                'quantity': 1,
+            })
+        session = stripe.checkout.Session.create(
+            payment_method_types=['card'],
+            line_items=line_items,
+            mode='payment',
+            success_url='https://telegram-bot-sohm.onrender.com/success',
+            cancel_url='https://telegram-bot-sohm.onrender.com/cancel',
+        )
+        bot.send_message(chat_id, f"💳 Complete your payment here:\n{session.url}")
+        bot.answer_callback_query(call.id, "Stripe payment link sent.")
 
 # ===========================
 #   Flask server
@@ -144,6 +181,22 @@ def paypal_webhook():
         message = f"✅ Payment received!\n💰 Amount: {amount} {currency}\n📧 From: {payer_email}\n🕒 {now}"
         bot.send_message(ADMIN_ID, message)
     return "OK", 200
+
+@app.route("/stripe-webhook", methods=["POST"])
+def stripe_webhook():
+    payload = request.data
+    sig_header = request.headers.get('Stripe-Signature')
+    endpoint_secret = "YOUR_STRIPE_ENDPOINT_SECRET"  # From Stripe dashboard
+    try:
+        event = stripe.Webhook.construct_event(payload, sig_header, endpoint_secret)
+    except Exception as e:
+        return jsonify(success=False), 400
+
+    if event['type'] == 'checkout.session.completed':
+        session = event['data']['object']
+        now = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+        bot.send_message(ADMIN_ID, f"✅ Stripe Payment received!\n💰 Amount: {session['amount_total']/100} EUR\n🕒 {now}")
+    return jsonify(success=True), 200
 
 # ===========================
 #   Set webhook
