@@ -35,6 +35,34 @@ def pay(message):
         reply_markup=markup
     )
 
+
+from flask import Flask, request
+
+app = Flask(__name__)
+
+@app.route('/paypal-webhook', methods=['POST'])
+def paypal_webhook():
+    data = request.json
+    print("📩 PayPal Webhook received:", data)
+
+    # Check if it's a completed payment
+    if data.get('event_type') == 'PAYMENT.CAPTURE.COMPLETED':
+        payer_email = data['resource']['payer']['email_address']
+        amount = data['resource']['amount']['value']
+        currency = data['resource']['amount']['currency_code']
+
+        print(f"✅ Payment received from {payer_email}: {amount} {currency}")
+
+    return "OK", 200
+
+if __name__ == "__main__":
+    # Run both the bot and the webhook server
+    import threading
+    threading.Thread(target=lambda: bot.infinity_polling()).start()
+    app.run(host="0.0.0.0", port=10000)
+
+
+
 # ===========================
 #   Auto reply (echo)
 # ===========================
@@ -47,3 +75,4 @@ def echo_all(message):
 # ===========================
 print("✅ Bot is running...")
 bot.infinity_polling()
+
