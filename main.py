@@ -15,13 +15,8 @@ app = Flask(__name__)
 # ===========================
 #   Stripe setup
 # ===========================
-STRIPE_SECRET_KEY = "sk_test.
-_51SLBdNJjMidYjUi4laG8TntwHT1IHZ
-2QcSiVZdXR6E81VpNehJ0DJDkox73xlmV6Kgo8k
-QtapAH5eGjtNdoRØvukØ0gu4aqlHE"
-STRIPE_PUBLISHABLE_KEY = "pk_test_51SLBdNJjMidYjUi4u1ChN08rQWh007
-N3egMVN5RfLbQwbPyQ1RqB4gwvTnx7Q7JXwCJdd
-3JxdMjmU0kzRDydtc1a00GEzbg9gР"
+STRIPE_SECRET_KEY = "sk_test._51SLBdNJjMidYjUi4laG8TntwHT1IHZ2QcSiVZdXR6E81VpNehJ0DJDkox73xlmV6Kgo8kQtapAH5eGjtNdoRØvukØ0gu4aqlHE"
+STRIPE_PUBLISHABLE_KEY = "pk_test_51SLBdNJjMidYjUi4u1ChN08rQWh007N3egMVN5RfLbQwbPyQ1RqB4gwvTnx7Q7JXwCJdd3JxdMjmU0kzRDydtc1a00GEzbg9gР"
 stripe.api_key = STRIPE_SECRET_KEY
 
 # ===========================
@@ -42,7 +37,7 @@ PRODUCTS = {
 
 # Cart per user
 user_cart = {}
-user_stage = {}  # track user's section
+user_stage = {}
 
 # ===========================
 #   Helper functions
@@ -140,14 +135,14 @@ def callback_inline(call):
         bot.answer_callback_query(call.id, "Bank transfer info sent.")
     elif call.data == "card_payment":
         _, total = format_cart(chat_id)
-        # Create Stripe checkout session
+        # Stripe checkout session
         line_items = []
         for item in user_cart.get(chat_id, []):
             line_items.append({
                 'price_data': {
                     'currency': 'eur',
                     'product_data': {'name': f"{item['product'].capitalize()} {item['qty']}"},
-                    'unit_amount': get_price(item['product'], item['qty'])*100,  # in cents
+                    'unit_amount': get_price(item['product'], item['qty'])*100,
                 },
                 'quantity': 1,
             })
@@ -191,10 +186,10 @@ def paypal_webhook():
 def stripe_webhook():
     payload = request.data
     sig_header = request.headers.get('Stripe-Signature')
-    endpoint_secret = "YOUR_STRIPE_ENDPOINT_SECRET"  # From Stripe dashboard
+    endpoint_secret = "whsec_YOUR_ENDPOINT_SECRET"  # Stripe dashboard
     try:
         event = stripe.Webhook.construct_event(payload, sig_header, endpoint_secret)
-    except Exception as e:
+    except Exception:
         return jsonify(success=False), 400
 
     if event['type'] == 'checkout.session.completed':
