@@ -6,7 +6,7 @@ from datetime import datetime
 
 # === CONFIGURAZIONE === #
 TOKEN = os.getenv("BOT_TOKEN", "8075827806:AAFLwKd9_jJ2s39eGK_64gs2X3CWJPlwwso")
-ADMIN_ID = @bmonex_bot  # <-- Inserisci qui il tuo ID Telegram (da @userinfobot)
+ADMIN_ID = 6497093715  # <-- Inserisci qui il tuo ID Telegram (da @userinfobot)
 DATA_FILE = "utenti.json"
 
 bot = telebot.TeleBot(TOKEN)
@@ -111,3 +111,4 @@ def admin_panel(message):
 if __name__ == "__main__":
     print("✅ Bot avviato, polling in corso...")
     bot.infinity_polling(timeout=10, long_polling_timeout=5)
+
