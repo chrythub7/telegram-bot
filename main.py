@@ -9,155 +9,119 @@ from datetime import datetime
 TOKEN = "8075827806:AAFLwKd9_jJ2s39eGK_64gs2X3CWJPlwwso"
 ADMIN_ID = 6497093715
 bot = TeleBot(TOKEN)
+app = Flask(__name__)
 
 # ===========================
-#   Data structures
+#   Products and prices
 # ===========================
-user_state = {}  # memorizza stato utente per back
-user_cart = {}   # memorizza carrello per utente
-
-# Prodotto e prezzi
 PRODUCTS = {
-    "Zafferano": {
-        "base_price": 8,
-        "discounts": {30: 0.10, 50: 0.15, 70: 0.20, 100: 0.25},  # percentuali sconto
-        "options": [1,3,5,10,30,50,70,100]
+    "zafferano": {
+        "1g": 8,
+        "3g": 24,
+        "5g": 40,
+        "10g": 80,
+        "30g": 216,   # 10% sconto
+        "50g": 320,   # 20% sconto
+        "70g": 448,   # 20% sconto
+        "100g": 600   # 25% sconto
     }
 }
+
+# Cart per utente
+user_cart = {}
 
 # ===========================
 #   Helper functions
 # ===========================
 def get_price(product, qty):
-    base = PRODUCTS[product]["base_price"]
-    discount = 0
-    for q, d in sorted(PRODUCTS[product]["discounts"].items()):
-        if qty >= q:
-            discount = d
-    return round(base * qty * (1-discount),2)
+    return PRODUCTS[product][qty]
 
-def show_main_menu(chat_id):
-    markup = types.InlineKeyboardMarkup()
-    markup.add(types.InlineKeyboardButton("🛒 Shop", callback_data="shop"))
-    markup.add(types.InlineKeyboardButton("🛍 Cart", callback_data="cart"))
-    markup.add(types.InlineKeyboardButton("ℹ️ Info", callback_data="info"))
-    markup.add(types.InlineKeyboardButton("📞 Contacts", callback_data="contacts"))
-    bot.send_message(chat_id, "👋 Welcome! Choose an option:", reply_markup=markup)
-    user_state[chat_id] = "main"
-
-def show_shop(chat_id):
-    markup = types.InlineKeyboardMarkup()
-    for product in PRODUCTS:
-        markup.add(types.InlineKeyboardButton(product, callback_data=f"product_{product}"))
-    markup.add(types.InlineKeyboardButton("⬅️ Back", callback_data="back"))
-    bot.send_message(chat_id, "Select a product:", reply_markup=markup)
-    user_state[chat_id] = "shop"
-
-def show_quantity(chat_id, product):
-    markup = types.InlineKeyboardMarkup()
-    for qty in PRODUCTS[product]["options"]:
-        price = get_price(product, qty)
-        markup.add(types.InlineKeyboardButton(f"{qty}g - {price}€", callback_data=f"qty_{product}_{qty}"))
-    markup.add(types.InlineKeyboardButton("⬅️ Back", callback_data="shop"))
-    bot.send_message(chat_id, f"Select quantity for {product}:", reply_markup=markup)
-    user_state[chat_id] = f"quantity_{product}"
-
-def show_cart(chat_id):
+def format_cart(chat_id):
     cart = user_cart.get(chat_id, [])
     if not cart:
-        bot.send_message(chat_id, "🛒 Your cart is empty!")
-    else:
-        text = "🛒 Your cart:\n"
-        total = 0
-        for item in cart:
-            price = get_price(item['product'], item['qty'])
-            total += price
-            text += f"{item['product']} {item['qty']}g - {price}€\n"
-        text += f"\n💰 Total: {round(total,2)}€"
-        bot.send_message(chat_id, text)
-    user_state[chat_id] = "cart"
-
-def show_info(chat_id):
-    text = "ℹ️ Info:\nThis is a professional bot for ordering Zafferano with multiple payment options."
-    bot.send_message(chat_id, text)
-    user_state[chat_id] = "info"
-
-def show_contacts(chat_id):
-    text = "📞 Contacts:\nAdmin Telegram: @ChristianMadafferi\nEmail: example@mail.com"
-    bot.send_message(chat_id, text)
-    user_state[chat_id] = "contacts"
+        return "🛒 Your cart is empty."
+    text = "🛒 Your cart:\n\n"
+    total = 0
+    for item in cart:
+        price = get_price(item['product'], item['qty'])
+        text += f"{item['product'].capitalize()} - {item['qty']} - {price}€\n"
+        total += price
+    text += f"\n💰 Total: {total}€"
+    return text
 
 # ===========================
 #   Bot commands
 # ===========================
 @bot.message_handler(commands=['start'])
 def start(message):
-    show_main_menu(message.chat.id)
+    chat_id = message.chat.id
+    user_cart[chat_id] = []
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    markup.add("/shop", "/cart", "/info", "/contacts")
+    bot.send_message(chat_id, "👋 Welcome! Choose an option:", reply_markup=markup)
 
 @bot.message_handler(commands=['help'])
 def help_command(message):
-    bot.send_message(message.chat.id, "📖 Available commands:\n/start - Start bot\n/help - Show commands\n/cart - Show cart\n/info - Bot info\n/contacts - Contact info")
+    bot.reply_to(message, "📖 Available commands:\n/start - Start\n/shop - Shop products\n/cart - View cart\n/info - Info\n/contacts - Contacts")
+
+@bot.message_handler(commands=['shop'])
+def shop(message):
+    chat_id = message.chat.id
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    for qty in PRODUCTS["zafferano"]:
+        markup.add(f"{qty}")
+    markup.add("Back")
+    bot.send_message(chat_id, "Choose zafferano quantity:", reply_markup=markup)
 
 @bot.message_handler(commands=['cart'])
-def cart_command(message):
-    show_cart(message.chat.id)
+def show_cart(message):
+    chat_id = message.chat.id
+    text = format_cart(chat_id)
+    markup = types.InlineKeyboardMarkup()
+    total = sum([get_price(i['product'], i['qty']) for i in user_cart.get(chat_id, [])])
+    if total > 0:
+        markup.add(types.InlineKeyboardButton("💸 Pay with PayPal", url=f"https://paypal.me/ChristianMadafferi/{total}"))
+        markup.add(types.InlineKeyboardButton("🏦 Bank Transfer", callback_data="bank_transfer"))
+    bot.send_message(chat_id, text, reply_markup=markup)
 
 @bot.message_handler(commands=['info'])
-def info_command(message):
-    show_info(message.chat.id)
+def info(message):
+    chat_id = message.chat.id
+    text = "ℹ️ Info:\nThis bot sells high quality zafferano.\nPrices:\n"
+    for qty, price in PRODUCTS["zafferano"].items():
+        text += f"{qty}: {price}€\n"
+    bot.send_message(chat_id, text)
 
 @bot.message_handler(commands=['contacts'])
-def contacts_command(message):
-    show_contacts(message.chat.id)
+def contacts(message):
+    chat_id = message.chat.id
+    bot.send_message(chat_id, "📞 Contacts:\nTelegram: @ChristianMadafferi\nEmail: example@email.com")
 
 # ===========================
-#   Callback query handler
+#   Handle quantity selection
+# ===========================
+@bot.message_handler(func=lambda message: message.text in PRODUCTS["zafferano"] or message.text == "Back")
+def select_quantity(message):
+    chat_id = message.chat.id
+    if message.text == "Back":
+        start(message)
+        return
+    user_cart[chat_id].append({"product": "zafferano", "qty": message.text})
+    bot.send_message(chat_id, f"✅ Added {message.text} zafferano to cart.\nUse /cart to view your cart.")
+
+# ===========================
+#   Inline callbacks
 # ===========================
 @bot.callback_query_handler(func=lambda call: True)
-def callback_handler(call):
+def callback_inline(call):
     chat_id = call.message.chat.id
-    data = call.data
-
-    # ----- Navigation -----
-    if data == "shop":
-        show_shop(chat_id)
-    elif data == "cart":
-        show_cart(chat_id)
-    elif data == "info":
-        show_info(chat_id)
-    elif data == "contacts":
-        show_contacts(chat_id)
-    elif data == "back":
-        # Return to previous state
-        prev_state = user_state.get(chat_id, "main")
-        if prev_state.startswith("quantity_"):
-            show_shop(chat_id)
-        else:
-            show_main_menu(chat_id)
-
-    # ----- Shop -----
-    elif data.startswith("product_"):
-        product = data.split("_")[1]
-        show_quantity(chat_id, product)
-
-    # ----- Quantity selection -----
-    elif data.startswith("qty_"):
-        parts = data.split("_")
-        product = parts[1]
-        qty = int(parts[2])
-        if chat_id not in user_cart:
-            user_cart[chat_id] = []
-        user_cart[chat_id].append({"product": product, "qty": qty})
-        price = get_price(product, qty)
-        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        bot.send_message(chat_id, f"✅ Added {product} {qty}g - {price}€ to cart at {now}")
-        show_shop(chat_id)
+    if call.data == "bank_transfer":
+        bot.send_message(chat_id, "🏦 Bank Transfer details:\nIBAN: IT12A3456789012345678901234\nBIC: ABCDITMMXXX\nSend the exact amount and then confirm here.")
+        bot.answer_callback_query(call.id, "Bank transfer info sent.")
 
 # ===========================
 #   Flask server
 # ===========================
-app = Flask(__name__)
-
 @app.route("/", methods=["GET"])
 def index():
     return "Bot is running!", 200
@@ -169,8 +133,20 @@ def telegram_webhook():
     bot.process_new_updates([update])
     return "OK", 200
 
+@app.route("/paypal-webhook", methods=["POST"])
+def paypal_webhook():
+    data = request.json
+    if data.get('event_type') == 'PAYMENT.CAPTURE.COMPLETED':
+        payer_email = data['resource']['payer']['email_address']
+        amount = data['resource']['amount']['value']
+        currency = data['resource']['amount']['currency_code']
+        now = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+        message = f"✅ Payment received!\n💰 Amount: {amount} {currency}\n📧 From: {payer_email}\n🕒 {now}"
+        bot.send_message(ADMIN_ID, message)
+    return "OK", 200
+
 # ===========================
-#   Set Telegram webhook
+#   Set webhook
 # ===========================
 WEBHOOK_URL = "https://telegram-bot-sohm.onrender.com"
 bot.remove_webhook()
