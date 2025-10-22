@@ -15,8 +15,13 @@ app = Flask(__name__)
 # ===========================
 #   Stripe setup
 # ===========================
-STRIPE_SECRET_KEY = "YOUR_STRIPE_SECRET_KEY"
-STRIPE_PUBLISHABLE_KEY = "YOUR_STRIPE_PUBLISHABLE_KEY"
+STRIPE_SECRET_KEY = "sk_test.
+_51SLBdNJjMidYjUi4laG8TntwHT1IHZ
+2QcSiVZdXR6E81VpNehJ0DJDkox73xlmV6Kgo8k
+QtapAH5eGjtNdoRØvukØ0gu4aqlHE"
+STRIPE_PUBLISHABLE_KEY = "pk_test_51SLBdNJjMidYjUi4u1ChN08rQWh007
+N3egMVN5RfLbQwbPyQ1RqB4gwvTnx7Q7JXwCJdd
+3JxdMjmU0kzRDydtc1a00GEzbg9gР"
 stripe.api_key = STRIPE_SECRET_KEY
 
 # ===========================
