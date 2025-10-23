@@ -10,7 +10,7 @@ from telegram.ext import (
 import stripe
 
 # ========= CONFIGURAZIONE =========
-BOT_TOKEN = "INSERISCI_IL_TUO_TOKEN_TELEGRAM"
+BOT_TOKEN = "8075827806:AAFLwKd9_jJ2s39eGK_64gs2X3CWJPlwwso"
 STRIPE_SECRET_KEY = "INSERISCI_LA_TUA_CHIAVE_STRIPE"
 EMAIL_USER = "madafferichristian@gmail.com"
 EMAIL_PASS = "zaze mcbc yzle rsug"
