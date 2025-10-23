@@ -1,4 +1,4 @@
 Flask
 stripe
-python-telegram-bot
+pyTelegramBotAPI
 requests
