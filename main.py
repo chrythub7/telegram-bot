@@ -48,7 +48,7 @@ stripe.api_key = STRIPE_SECRET_KEY
 # Products/prices
 # ---------------------------
 PRODUCTS = {
-    "zafferano": {
+    "saffron": {
         "1g": 8,
         "3g": 24,
         "5g": 40,
@@ -85,14 +85,14 @@ def calc_cart_total(chat_id):
 def format_cart(chat_id):
     cart = user_cart.get(chat_id, [])
     if not cart:
-        return "🛒 Il tuo carrello è vuoto.", 0
-    text = "🛒 Carrello:\n\n"
+        return "🛒 Your cart is empty.", 0
+    text = "🛒 *Your cart:*\n\n"
     total = 0
     for i, item in enumerate(cart, 1):
         price = get_price(item['product'], item['qty'])
         text += f"{i}) {item['product'].capitalize()} — {item['qty']} → {price}€\n"
         total += price
-    text += f"\n💰 Totale: {total}€"
+    text += f"\n💰 *Total:* {total}€"
     return text, total
 
 def send_email(to_email, subject, body):
@@ -106,9 +106,9 @@ def send_email(to_email, subject, body):
             s.starttls()
             s.login(EMAIL_USER, EMAIL_PASS)
             s.send_message(msg)
-        print(f"✅ Email inviata a {to_email}")
+        print(f"✅ Email sent to {to_email}")
     except Exception as e:
-        print(f"❌ Errore email: {e}")
+        print(f"❌ Email error: {e}")
 
 def generate_order(chat_id):
     order_id = str(uuid.uuid4())[:8]
@@ -140,10 +140,10 @@ def start(msg):
 def shop(msg):
     chat_id = msg.chat.id
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    for qty in PRODUCTS['zafferano'].keys():
+    for qty in PRODUCTS['saffron'].keys():
         markup.add(qty)
-    markup.add("⬅️ Indietro")
-    bot.send_message(chat_id, "🌿 Scegli la quantità di zafferano:", reply_markup=markup)
+    markup.add("⬅️ Back")
+    bot.send_message(chat_id, "🌿 Choose the saffron quantity:", reply_markup=markup)
 
 @bot.message_handler(commands=['cart'])
 def cart(msg):
@@ -152,15 +152,15 @@ def cart(msg):
     markup = types.InlineKeyboardMarkup()
     if total > 0:
         markup.add(
-            types.InlineKeyboardButton("💰 PayPal", callback_data="paypal_payment"),
-            types.InlineKeyboardButton("💳 Card (Stripe)", callback_data="stripe_payment")
+            types.InlineKeyboardButton("💰 Pay with PayPal", callback_data="paypal_payment"),
+            types.InlineKeyboardButton("💳 Pay with Card (Stripe)", callback_data="stripe_payment")
         )
-    bot.send_message(chat_id, text, reply_markup=markup)
+    bot.send_message(chat_id, text, parse_mode="Markdown", reply_markup=markup)
 
 @bot.message_handler(commands=['info'])
 def info(msg):
-    txt = "ℹ️ *Zafferano 100% puro italiano*\n\nPrezzi:\n"
-    for k, v in PRODUCTS['zafferano'].items():
+    txt = "ℹ️ *100% pure Italian saffron*\n\nPrices:\n"
+    for k, v in PRODUCTS['saffron'].items():
         txt += f"- {k}: {v}€\n"
     bot.send_message(msg.chat.id, txt, parse_mode="Markdown")
 
@@ -169,21 +169,39 @@ def contacts(msg):
     bot.send_message(msg.chat.id, "📞 Contacts:\nTelegram: @SlyanuS7\nEmail: brandingshopy@gmail.com")
 
 # ---------------------------
-# Selection handler
+# Product selection
 # ---------------------------
-@bot.message_handler(func=lambda m: m.text in PRODUCTS['zafferano'] or m.text == "⬅️ Back")
+@bot.message_handler(func=lambda m: m.text in PRODUCTS['saffron'] or m.text == "⬅️ Back")
 def select_qty(msg):
     chat_id = msg.chat.id
-    if msg.text == "⬅️ Indietro":
+    if msg.text == "⬅️ Back":
         start(msg)
         return
-    user_cart.setdefault(chat_id, []).append({'product': 'zafferano', 'qty': msg.text})
-    bot.send_message(chat_id, f"✅ Aggiunto {msg.text} di zafferano al carrello! Premi \ncart per proseguire con il pagamento")
+    user_cart.setdefault(chat_id, []).append({'product': 'saffron', 'qty': msg.text})
+    markup = types.InlineKeyboardMarkup()
+    markup.add(types.InlineKeyboardButton("🛒 View Cart", callback_data="open_cart"))
+    bot.send_message(
+        chat_id,
+        f"✅ Added {msg.text} of saffron to your cart! Tap below to view your cart.",
+        reply_markup=markup
+    )
+
+@bot.callback_query_handler(func=lambda call: call.data == "open_cart")
+def open_cart(call):
+    chat_id = call.message.chat.id
+    text, total = format_cart(chat_id)
+    markup = types.InlineKeyboardMarkup()
+    if total > 0:
+        markup.add(
+            types.InlineKeyboardButton("💰 Pay with PayPal", callback_data="paypal_payment"),
+            types.InlineKeyboardButton("💳 Pay with Card (Stripe)", callback_data="stripe_payment")
+        )
+    bot.send_message(chat_id, text, parse_mode="Markdown", reply_markup=markup)
 
 # ---------------------------
-# Callback (payments)
+# Callback payments
 # ---------------------------
-@bot.callback_query_handler(func=lambda call: True)
+@bot.callback_query_handler(func=lambda call: call.data.startswith("paypal") or call.data.startswith("stripe") or call.data.startswith("paypal_paid"))
 def cb(call):
     chat_id = call.message.chat.id
     order = generate_order(chat_id)
@@ -193,15 +211,15 @@ def cb(call):
         paypal_link = f"https://www.paypal.me/{PAYPAL_ME_USERNAME}/{total}"
         keyboard = types.InlineKeyboardMarkup()
         keyboard.add(types.InlineKeyboardButton("🔗 Open PayPal", url=paypal_link))
-        keyboard.add(types.InlineKeyboardButton("✅ Paid", callback_data=f"paypal_paid|{order['order_id']}"))
-        bot.send_message(chat_id, f"💸 Pay *{total}€* on PayPal and then write 'Paid'.", parse_mode="Markdown", reply_markup=keyboard)
+        keyboard.add(types.InlineKeyboardButton("✅ I have paid", callback_data=f"paypal_paid|{order['order_id']}"))
+        bot.send_message(chat_id, f"💸 Pay *{total}€* via PayPal, then press the button below once payment is done.", parse_mode="Markdown", reply_markup=keyboard)
 
     elif call.data == "stripe_payment":
         try:
             line_items = [{
                 'price_data': {
                     'currency': 'eur',
-                    'product_data': {'name': f"Zafferano {it['qty']}"},
+                    'product_data': {'name': f"Saffron {it['qty']}"},
                     'unit_amount': int(get_price(it['product'], it['qty']) * 100),
                 },
                 'quantity': 1
@@ -217,7 +235,7 @@ def cb(call):
             )
 
             keyboard = types.InlineKeyboardMarkup()
-            keyboard.add(types.InlineKeyboardButton("🔗 Paga con carta", url=session.url))
+            keyboard.add(types.InlineKeyboardButton("🔗 Pay with Card", url=session.url))
             bot.send_message(chat_id, f"💳 Total: {order['total']}€ — click below to pay.", reply_markup=keyboard)
         except Exception as e:
             bot.send_message(chat_id, f"❌ Stripe Error: {e}")
@@ -225,10 +243,10 @@ def cb(call):
     elif call.data.startswith("paypal_paid|"):
         _, order_id = call.data.split("|", 1)
         user_stage[chat_id] = f"awaiting_shipping|{order_id}"
-        bot.send_message(chat_id, "✅ Now send your shipping addresses (name, address, city, CAP, phone number).")
+        bot.send_message(chat_id, "✅ Please send your shipping details (full name, address, city, ZIP, phone number).")
 
 # ---------------------------
-# Catch-all messages (shipping + email)
+# Shipping + Email
 # ---------------------------
 @bot.message_handler(func=lambda m: True)
 def all_msg(msg):
@@ -243,8 +261,8 @@ def all_msg(msg):
             bot.send_message(chat_id, "⚠️ Order not found.")
             return
         order['shipping'] = text
-        send_email(ADMIN_EMAIL, f"Nuovo ordine {order_id}", f"Dettagli spedizione:\n{text}\nTotale: {order['total']}€")
-        bot.send_message(chat_id, "📦 Spedizione salvata. Ora inviami la tua email per la conferma.")
+        send_email(ADMIN_EMAIL, f"New Order {order_id}", f"Shipping details:\n{text}\nTotal: {order['total']}€")
+        bot.send_message(chat_id, "📦 Shipping info saved. Please send your email for confirmation.")
         user_stage[chat_id] = f"awaiting_email|{order_id}"
         return
 
@@ -252,15 +270,15 @@ def all_msg(msg):
         _, order_id = stage.split("|", 1)
         order = pending_orders.get(order_id)
         email = text
-        send_email(email, f"Conferma ordine {order_id}", f"Grazie! Il tuo ordine è stato ricevuto e sarà spedito a breve.\nTotale: {order['total']}€")
-        bot.send_message(chat_id, "✅ Email di conferma inviata! Grazie per l’acquisto 🙏")
+        send_email(email, f"Order confirmation {order_id}", f"Thank you! Your order has been received and will be shipped soon.\nTotal: {order['total']}€")
+        bot.send_message(chat_id, "✅ Confirmation email sent! Thank you for your purchase 🙏")
         user_stage[chat_id] = ""
         return
 
     if text.startswith("/"):
-        bot.send_message(chat_id, "❓ Comando non valido. Usa /shop o /cart.")
+        bot.send_message(chat_id, "❓ Unknown command. Use /shop or /cart.")
     else:
-        bot.send_message(chat_id, "🛍 Usa /shop per iniziare o /cart per vedere il carrello.")
+        bot.send_message(chat_id, "🛍 Use /shop to start or /cart to see your cart.")
 
 # ---------------------------
 # Stripe webhook
@@ -283,7 +301,7 @@ def stripe_webhook():
         if order:
             order["paid"] = True
             order["payment_method"] = "stripe"
-            bot.send_message(chat_id, f"✅ Pagamento Stripe completato ({order['total']}€). Inviami i dati per la spedizione (nome, indirizzo, CAP, telefono).")
+            bot.send_message(chat_id, f"✅ Stripe payment completed ({order['total']}€). Please send your shipping details (full name, address, ZIP, phone number).")
             user_stage[chat_id] = f"awaiting_shipping|{order_id}"
     return "ok", 200
 
@@ -292,7 +310,7 @@ def stripe_webhook():
 # ---------------------------
 @app.route("/")
 def index():
-    return "Bot attivo", 200
+    return "Bot is running", 200
 
 @app.route("/", methods=["POST"])
 def tg_update():
@@ -302,11 +320,11 @@ def tg_update():
 
 @app.route("/success")
 def success():
-    return "<h2>✅ Pagamento riuscito! Torna al bot per completare la spedizione.</h2>"
+    return "<h2>✅ Payment successful! Return to Telegram to complete the shipping details.</h2>"
 
 @app.route("/cancel")
 def cancel():
-    return "<h2>❌ Pagamento annullato.</h2>"
+    return "<h2>❌ Payment cancelled.</h2>"
 
 # ---------------------------
 # Webhook
@@ -315,9 +333,9 @@ if WEBHOOK_URL:
     try:
         bot.remove_webhook()
         bot.set_webhook(url=WEBHOOK_URL)
-        print("Webhook impostato su:", WEBHOOK_URL)
+        print("Webhook set to:", WEBHOOK_URL)
     except Exception as e:
-        print("Errore webhook:", e)
+        print("Webhook error:", e)
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
