@@ -3,20 +3,24 @@ from telebot import TeleBot, types
 import os
 from datetime import datetime
 import stripe
+from dotenv import load_dotenv
 
 # ===========================
-#   Bot setup
+#   Load environment variables
 # ===========================
-TOKEN = "8075827806:AAFLwKd9_jJ2s39eGK_64gs2X3CWJPlwwso"
-ADMIN_ID = 6497093715
+load_dotenv()  # carica le variabili da .env locale se presente
+
+TOKEN = os.getenv("TELEGRAM_TOKEN")
+ADMIN_ID = int(os.getenv("ADMIN_ID", 0))  # assicurati di mettere l'ID nel .env
+STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY")
+STRIPE_PUBLISHABLE_KEY = os.getenv("STRIPE_PUBLISHABLE_KEY")
+STRIPE_ENDPOINT_SECRET = os.getenv("STRIPE_ENDPOINT_SECRET")
+
+# ===========================
+#   Bot & Flask setup
+# ===========================
 bot = TeleBot(TOKEN)
 app = Flask(__name__)
-
-# ===========================
-#   Stripe setup
-# ===========================
-STRIPE_SECRET_KEY = "sk_test._51SLBdNJjMidYjUi4laG8TntwHT1IHZ2QcSiVZdXR6E81VpNehJ0DJDkox73xlmV6Kgo8kQtapAH5eGjtNdoRØvukØ0gu4aqlHE"
-STRIPE_PUBLISHABLE_KEY = "pk_test_51SLBdNJjMidYjUi4u1ChN08rQWh007N3egMVN5RfLbQwbPyQ1RqB4gwvTnx7Q7JXwCJdd3JxdMjmU0kzRDydtc1a00GEzbg9gР"
 stripe.api_key = STRIPE_SECRET_KEY
 
 # ===========================
@@ -28,10 +32,10 @@ PRODUCTS = {
         "3g": 24,
         "5g": 40,
         "10g": 80,
-        "30g": 216,   # 10% discount
-        "50g": 320,   # 20% discount
-        "70g": 448,   # 20% discount
-        "100g": 600   # 25% discount
+        "30g": 216,
+        "50g": 320,
+        "70g": 448,
+        "100g": 600
     }
 }
 
@@ -135,7 +139,6 @@ def callback_inline(call):
         bot.answer_callback_query(call.id, "Bank transfer info sent.")
     elif call.data == "card_payment":
         _, total = format_cart(chat_id)
-        # Stripe checkout session
         line_items = []
         for item in user_cart.get(chat_id, []):
             line_items.append({
@@ -178,17 +181,15 @@ def paypal_webhook():
         amount = data['resource']['amount']['value']
         currency = data['resource']['amount']['currency_code']
         now = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-        message = f"✅ Payment received!\n💰 Amount: {amount} {currency}\n📧 From: {payer_email}\n🕒 {now}"
-        bot.send_message(ADMIN_ID, message)
+        bot.send_message(ADMIN_ID, f"✅ Payment received!\n💰 Amount: {amount} {currency}\n📧 From: {payer_email}\n🕒 {now}")
     return "OK", 200
 
 @app.route("/stripe-webhook", methods=["POST"])
 def stripe_webhook():
     payload = request.data
     sig_header = request.headers.get('Stripe-Signature')
-    endpoint_secret = "whsec_WL24cUyVC74mJ2bYunMh0kqMLPVirWd0"
     try:
-        event = stripe.Webhook.construct_event(payload, sig_header, endpoint_secret)
+        event = stripe.Webhook.construct_event(payload, sig_header, STRIPE_ENDPOINT_SECRET)
     except Exception:
         return jsonify(success=False), 400
 
