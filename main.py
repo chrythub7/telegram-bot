@@ -34,6 +34,7 @@ PRODUCTS = {
 
 user_cart = {}
 user_state = {}
+user_info = {}
 
 # ===========================
 #   FUNZIONI
@@ -62,8 +63,12 @@ def start(message):
     chat_id = message.chat.id
     user_cart[chat_id] = []
     user_state.pop(chat_id, None)
+    user_info.pop(chat_id, None)
+
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add("/shop", "/cart", "/info", "/contacts")
+    markup.add("/shop", "/cart")
+    markup.add("/info", "/contacts")
+
     bot.send_message(chat_id, "👋 Benvenuto! Scegli un'opzione:", reply_markup=markup)
 
 @bot.message_handler(commands=['shop'])
@@ -89,8 +94,32 @@ def show_cart(message):
         )
     bot.send_message(chat_id, text, parse_mode="Markdown", reply_markup=markup)
 
+@bot.message_handler(commands=['info'])
+def info(message):
+    bot.send_message(
+        message.chat.id,
+        "ℹ️ *Informazioni sul prodotto*\n\n"
+        "🌿 Zafferano purissimo dell’Aquila.\n"
+        "✨ Coltivato a mano, essiccato naturalmente e confezionato fresco.\n"
+        "📦 Spedizione in 24/48 ore con tracciamento.\n\n"
+        "💬 Per ordini personalizzati contattaci con /contacts.",
+        parse_mode="Markdown"
+    )
+
+@bot.message_handler(commands=['contacts'])
+def contacts(message):
+    bot.send_message(
+        message.chat.id,
+        "📞 *Contatti*\n\n"
+        "👤 Christian Madafferi\n"
+        "📧 Email: example@email.com\n"
+        "📍 Reggio Calabria\n\n"
+        "💬 Scrivici qui su Telegram o usa PayPal per ordinare.",
+        parse_mode="Markdown"
+    )
+
 # ===========================
-#   LOGICA SELEZIONE PRODOTTI
+#   LOGICA SELEZIONE
 # ===========================
 @bot.message_handler(func=lambda m: True)
 def handle_messages(message):
@@ -110,9 +139,22 @@ def handle_messages(message):
 
     elif state == "awaiting_address":
         address = message.text.strip()
+        user_info[chat_id] = {"address": address}
         now = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-        bot.send_message(chat_id, f"🏠 Indirizzo ricevuto:\n{address}\n\n✅ L’ordine è stato registrato con successo!\n🕒 {now}")
-        bot.send_message(ADMIN_ID, f"📦 Nuovo ordine da @{message.from_user.username or message.chat.first_name}\n\n🏠 {address}")
+        _, total = format_cart(chat_id)
+
+        bot.send_message(chat_id, f"🏠 Indirizzo ricevuto:\n{address}\n\n✅ Ordine registrato correttamente!\n🕒 {now}")
+
+        # Riepilogo all'admin
+        cart_text, total = format_cart(chat_id)
+        bot.send_message(
+            ADMIN_ID,
+            f"📦 *Nuovo ordine!*\n\n"
+            f"👤 @{message.from_user.username or message.chat.first_name}\n"
+            f"{cart_text}\n\n"
+            f"🏠 *Spedire a:* {address}\n🕒 {now}",
+            parse_mode="Markdown"
+        )
         user_state.pop(chat_id, None)
 
 # ===========================
@@ -127,7 +169,8 @@ def callback_inline(call):
         paypal_url = f"https://paypal.me/ChristianMadafferi/{total}"
         bot.send_message(
             chat_id,
-            f"💸 *Pagamento PayPal*\n\n➡️ [Paga qui]({paypal_url})\n\nDopo aver pagato, invia l’indirizzo di spedizione.",
+            f"💸 *Pagamento PayPal*\n\n➡️ [Paga qui]({paypal_url})\n\n"
+            f"Dopo aver pagato, invia il tuo *indirizzo di spedizione* qui in chat 🏠.",
             parse_mode="Markdown",
             disable_web_page_preview=True
         )
@@ -154,7 +197,8 @@ def callback_inline(call):
 
             bot.send_message(
                 chat_id,
-                f"💳 *Pagamento con Carta*\n\n➡️ [Paga in sicurezza]({session.url})\n\nDopo il pagamento, inserisci il tuo indirizzo di spedizione.",
+                f"💳 *Pagamento con Carta (Stripe)*\n\n➡️ [Paga in sicurezza]({session.url})\n\n"
+                f"Dopo il pagamento, invia il tuo *indirizzo di spedizione* 🏠.",
                 parse_mode="Markdown",
                 disable_web_page_preview=True
             )
