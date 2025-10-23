@@ -133,8 +133,8 @@ def start(msg):
     chat_id = msg.chat.id
     user_cart[chat_id] = []
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add("/shop", "/cart", "/info", "/contacts")
-    bot.send_message(chat_id, "👋 Benvenuto su *BrandingShop*!", parse_mode="Markdown", reply_markup=markup)
+    markup.add("🛍️ Shop", "🛒 Cart", "ℹ️ Info", "📞 Contacts")
+    bot.send_message(chat_id, "👋 Welcome to *BrandingShopy*!", parse_mode="Markdown", reply_markup=markup)
 
 @bot.message_handler(commands=['shop'])
 def shop(msg):
@@ -153,7 +153,7 @@ def cart(msg):
     if total > 0:
         markup.add(
             types.InlineKeyboardButton("💰 PayPal", callback_data="paypal_payment"),
-            types.InlineKeyboardButton("💳 Carta (Stripe)", callback_data="stripe_payment")
+            types.InlineKeyboardButton("💳 Card (Stripe)", callback_data="stripe_payment")
         )
     bot.send_message(chat_id, text, reply_markup=markup)
 
@@ -166,19 +166,19 @@ def info(msg):
 
 @bot.message_handler(commands=['contacts'])
 def contacts(msg):
-    bot.send_message(msg.chat.id, "📞 Contatti:\nTelegram: @SlyanuS7\nEmail: brandingshopy@gmail.com")
+    bot.send_message(msg.chat.id, "📞 Contacts:\nTelegram: @SlyanuS7\nEmail: brandingshopy@gmail.com")
 
 # ---------------------------
 # Selection handler
 # ---------------------------
-@bot.message_handler(func=lambda m: m.text in PRODUCTS['zafferano'] or m.text == "⬅️ Indietro")
+@bot.message_handler(func=lambda m: m.text in PRODUCTS['zafferano'] or m.text == "⬅️ Back")
 def select_qty(msg):
     chat_id = msg.chat.id
     if msg.text == "⬅️ Indietro":
         start(msg)
         return
     user_cart.setdefault(chat_id, []).append({'product': 'zafferano', 'qty': msg.text})
-    bot.send_message(chat_id, f"✅ Aggiunto {msg.text} di zafferano al carrello!")
+    bot.send_message(chat_id, f"✅ Aggiunto {msg.text} di zafferano al carrello! Premi \ncart per proseguire con il pagamento")
 
 # ---------------------------
 # Callback (payments)
@@ -192,9 +192,9 @@ def cb(call):
         total = order['total']
         paypal_link = f"https://www.paypal.me/{PAYPAL_ME_USERNAME}/{total}"
         keyboard = types.InlineKeyboardMarkup()
-        keyboard.add(types.InlineKeyboardButton("🔗 Apri PayPal", url=paypal_link))
-        keyboard.add(types.InlineKeyboardButton("✅ Ho pagato", callback_data=f"paypal_paid|{order['order_id']}"))
-        bot.send_message(chat_id, f"💸 Paga *{total}€* su PayPal e poi premi 'Ho pagato'.", parse_mode="Markdown", reply_markup=keyboard)
+        keyboard.add(types.InlineKeyboardButton("🔗 Open PayPal", url=paypal_link))
+        keyboard.add(types.InlineKeyboardButton("✅ Paid", callback_data=f"paypal_paid|{order['order_id']}"))
+        bot.send_message(chat_id, f"💸 Pay *{total}€* on PayPal and then write 'Paid'.", parse_mode="Markdown", reply_markup=keyboard)
 
     elif call.data == "stripe_payment":
         try:
@@ -218,14 +218,14 @@ def cb(call):
 
             keyboard = types.InlineKeyboardMarkup()
             keyboard.add(types.InlineKeyboardButton("🔗 Paga con carta", url=session.url))
-            bot.send_message(chat_id, f"💳 Totale: {order['total']}€ — clicca sotto per pagare.", reply_markup=keyboard)
+            bot.send_message(chat_id, f"💳 Total: {order['total']}€ — click below to pay.", reply_markup=keyboard)
         except Exception as e:
-            bot.send_message(chat_id, f"❌ Errore Stripe: {e}")
+            bot.send_message(chat_id, f"❌ Stripe Error: {e}")
 
     elif call.data.startswith("paypal_paid|"):
         _, order_id = call.data.split("|", 1)
         user_stage[chat_id] = f"awaiting_shipping|{order_id}"
-        bot.send_message(chat_id, "✅ Inviami ora i dati di spedizione (nome, indirizzo, CAP, telefono).")
+        bot.send_message(chat_id, "✅ Now send your shipping addresses (name, address, city, CAP, phone number).")
 
 # ---------------------------
 # Catch-all messages (shipping + email)
@@ -240,7 +240,7 @@ def all_msg(msg):
         _, order_id = stage.split("|", 1)
         order = pending_orders.get(order_id)
         if not order:
-            bot.send_message(chat_id, "⚠️ Ordine non trovato.")
+            bot.send_message(chat_id, "⚠️ Order not found.")
             return
         order['shipping'] = text
         send_email(ADMIN_EMAIL, f"Nuovo ordine {order_id}", f"Dettagli spedizione:\n{text}\nTotale: {order['total']}€")
