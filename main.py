@@ -7,11 +7,24 @@ import stripe
 # ===========================
 #   CONFIGURAZIONE BASE
 # ===========================
-TOKEN = os.getenv("BOT_TOKEN")  # es: 8075827806:AA...
-ADMIN_ID = int(os.getenv("ADMIN_ID", "6497093715"))
+TOKEN = os.getenv("BOT_TOKEN")
+ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
 STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY")
 STRIPE_PUBLISHABLE_KEY = os.getenv("STRIPE_PUBLISHABLE_KEY")
 STRIPE_ENDPOINT_SECRET = os.getenv("STRIPE_ENDPOINT_SECRET")
+
+# Controllo automatico variabili mancanti
+missing_env = [k for k, v in {
+    "BOT_TOKEN": TOKEN,
+    "ADMIN_ID": ADMIN_ID,
+    "STRIPE_SECRET_KEY": STRIPE_SECRET_KEY,
+    "STRIPE_PUBLISHABLE_KEY": STRIPE_PUBLISHABLE_KEY,
+    "STRIPE_ENDPOINT_SECRET": STRIPE_ENDPOINT_SECRET
+}.items() if not v]
+if missing_env:
+    print(f"⚠️ ERRORE: mancano variabili ENV -> {', '.join(missing_env)}")
+else:
+    print("✅ Tutte le variabili ENV trovate!")
 
 bot = TeleBot(TOKEN)
 app = Flask(__name__)
@@ -26,15 +39,14 @@ PRODUCTS = {
         "3g": 24,
         "5g": 40,
         "10g": 80,
-        "30g": 216,   # 10% di sconto
-        "50g": 320,   # 20%
-        "70g": 448,   # 20%
-        "100g": 600   # 25%
+        "30g": 216,
+        "50g": 320,
+        "70g": 448,
+        "100g": 600
     }
 }
 
 user_cart = {}
-user_stage = {}
 
 # ===========================
 #   FUNZIONI DI SUPPORTO
@@ -62,15 +74,13 @@ def format_cart(chat_id):
 def start(message):
     chat_id = message.chat.id
     user_cart[chat_id] = []
-    user_stage[chat_id] = "start"
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     markup.add("/shop", "/cart", "/info", "/contacts")
-    bot.send_message(chat_id, "👋 Benvenuto! Scegli un'opzione:", reply_markup=markup)
+    bot.send_message(chat_id, "👋 Benvenuto nel nostro shop di Zafferano! Scegli un'opzione:", reply_markup=markup)
 
 @bot.message_handler(commands=['shop'])
 def shop(message):
     chat_id = message.chat.id
-    user_stage[chat_id] = "shop"
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     for qty in PRODUCTS["zafferano"]:
         markup.add(f"{qty}")
@@ -83,7 +93,7 @@ def show_cart(message):
     text, total = format_cart(chat_id)
     markup = types.InlineKeyboardMarkup()
     if total > 0:
-        text += f"\n\n💳 Seleziona un metodo di pagamento e paga l'esatto importo di *{total}€*."
+        text += f"\n\n💳 Scegli un metodo di pagamento e paga *esattamente {total}€*:"
         markup.add(
             types.InlineKeyboardButton("💸 PayPal", callback_data="paypal_payment"),
             types.InlineKeyboardButton("💳 Carta (Stripe)", callback_data="card_payment")
@@ -92,16 +102,14 @@ def show_cart(message):
 
 @bot.message_handler(commands=['info'])
 def info(message):
-    chat_id = message.chat.id
-    text = "ℹ️ *Informazioni sul prodotto:*\n\nZafferano 100% puro, coltivato in Italia 🇮🇹\n\n💰 *Prezzi e sconti:*\n"
+    text = "ℹ️ *Zafferano 100% italiano 🇮🇹*\n\n💰 *Prezzi:*\n"
     for qty, price in PRODUCTS["zafferano"].items():
         text += f"- {qty}: {price}€\n"
-    bot.send_message(chat_id, text, parse_mode="Markdown")
+    bot.send_message(message.chat.id, text, parse_mode="Markdown")
 
 @bot.message_handler(commands=['contacts'])
 def contacts(message):
-    chat_id = message.chat.id
-    bot.send_message(chat_id, "📞 *Contatti:*\n\nTelegram: @SlyanuS7\nEmail: brandingshopy@gmail.com\nInstagram: 1.chr_9", parse_mode="Markdown")
+    bot.send_message(message.chat.id, "📞 *Contatti:*\n\nTelegram: @SlyanuS7\nEmail: brandingshopy@gmail.com\nInstagram: 1.chr_9", parse_mode="Markdown")
 
 # ===========================
 #   SELEZIONE QUANTITÀ
@@ -114,7 +122,7 @@ def select_quantity(message):
         return
     user_cart[chat_id].append({"product": "zafferano", "qty": message.text})
     now = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-    bot.send_message(chat_id, f"✅ Aggiunto {message.text} di zafferano al carrello.\n🕒 {now}\nUsa /cart per visualizzare il carrello.")
+    bot.send_message(chat_id, f"✅ Aggiunto {message.text} di zafferano al carrello.\n🕒 {now}\nUsa /cart per vedere il carrello.")
 
 # ===========================
 #   CALLBACK PAGAMENTI
@@ -129,7 +137,7 @@ def callback_inline(call):
         bot.send_photo(
             chat_id,
             "https://upload.wikimedia.org/wikipedia/commons/b/b5/PayPal.svg",
-            caption=f"💸 *Pagamento PayPal*\n\n👉 Clicca qui per completare il pagamento:\n[{paypal_url}]({paypal_url})\n\n⚠️ Invia *esattamente {total}€* per completare l'ordine.",
+            caption=f"💸 *Pagamento con PayPal*\n\n➡️ [Clicca qui per pagare]({paypal_url})\n\n⚠️ Invia *esattamente {total}€* per completare l’ordine.",
             parse_mode="Markdown"
         )
 
@@ -155,8 +163,8 @@ def callback_inline(call):
 
         bot.send_photo(
             chat_id,
-            "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f0/Stripe_logo_2014.png/800px-Stripe_logo_2014.png",
-            caption=f"💳 *Pagamento con Carta (Stripe)*\n\n👉 [Clicca qui per pagare in modo sicuro]({session.url})\n\n⚠️ Paga *esattamente {total}€* per completare l'ordine.",
+            "https://files.stripe.com/docs/stripe_logo.png",
+            caption=f"💳 *Pagamento con Carta (Stripe)*\n\n➡️ [Paga in modo sicuro qui]({session.url})\n\n⚠️ Paga *esattamente {total}€* per completare l’ordine.",
             parse_mode="Markdown"
         )
 
