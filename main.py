@@ -204,18 +204,24 @@ def callback_handler(call):
     order = generate_order(chat_id)
 
     if data == "paypal_payment":
-        # PayPal.me link (manual)
-        total = order['total']
-        paypal_url = f"https://paypal.me/{PAYPAL_ME_USERNAME}/{total}"
-        keyboard = types.InlineKeyboardMarkup()
-        keyboard.add(types.InlineKeyboardButton("🔗 Open PayPal.me", url=paypal_url))
-        keyboard.add(types.InlineKeyboardButton("✅ I've paid (I will send TX ID)", callback_data=f"paypal_paid|{order['order_id']}"))
-        bot.send_photo(chat_id,
-                       "https://upload.wikimedia.org/wikipedia/commons/b/b5/PayPal.svg",
-                       caption=f"💸 PayPal — please pay *exactly {total}€* for order {order['order_id']}. After payment press \"I've paid\" and send the transaction id or screenshot.",
-                       parse_mode="Markdown",
-                       reply_markup=keyboard)
-        bot.answer_callback_query(call.id, "PayPal instructions sent.")
+    # PayPal.me link (manual)
+    total = order['total']
+    # link fisso personalizzato
+    paypal_link = f"https://www.paypal.me/ChristianMadafferi/{total}"
+    keyboard = types.InlineKeyboardMarkup()
+    keyboard.add(types.InlineKeyboardButton("🔗 Apri PayPal", url=paypal_link))
+    keyboard.add(types.InlineKeyboardButton("✅ Ho pagato (invierò TX ID)", callback_data=f"paypal_paid|{order['order_id']}"))
+    bot.send_photo(
+        chat_id,
+        "https://upload.wikimedia.org/wikipedia/commons/b/b5/PayPal.svg",
+        caption=(
+            f"💸 PayPal — paga *esattamente {total}€* per l'ordine {order['order_id']}.\n\n"
+            "Dopo il pagamento premi “Ho pagato” e invia l’ID della transazione o uno screenshot."
+        ),
+        parse_mode="Markdown",
+        reply_markup=keyboard
+    )
+    bot.answer_callback_query(call.id, "Istruzioni PayPal inviate.")
 
     elif data == "stripe_payment":
         # Create Stripe Checkout session with metadata (chat_id + order_id)
