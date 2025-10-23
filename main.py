@@ -17,7 +17,6 @@ app = Flask(__name__)
 # ===========================
 STRIPE_SECRET_KEY = "sk_test._51SLBdNJjMidYjUi4laG8TntwHT1IHZ2QcSiVZdXR6E81VpNehJ0DJDkox73xlmV6Kgo8kQtapAH5eGjtNdoRØvukØ0gu4aqlHE"
 STRIPE_PUBLISHABLE_KEY = "pk_test_51SLBdNJjMidYjUi4u1ChN08rQWh007N3egMVN5RfLbQwbPyQ1RqB4gwvTnx7Q7JXwCJdd3JxdMjmU0kzRDydtc1a00GEzbg9gР"
-endpoint_secret = "whsec_WL24cUyVC74mJ2bYunMh0kqMLPVirWd0"
 stripe.api_key = STRIPE_SECRET_KEY
 
 # ===========================
@@ -187,7 +186,7 @@ def paypal_webhook():
 def stripe_webhook():
     payload = request.data
     sig_header = request.headers.get('Stripe-Signature')
-    endpoint_secret = "whsec_YOUR_ENDPOINT_SECRET"  # Stripe dashboard
+    endpoint_secret = "whsec_WL24cUyVC74mJ2bYunMh0kqMLPVirWd0"
     try:
         event = stripe.Webhook.construct_event(payload, sig_header, endpoint_secret)
     except Exception:
