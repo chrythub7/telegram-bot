@@ -10,15 +10,13 @@ import stripe
 TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
 STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY")
-STRIPE_PUBLISHABLE_KEY = os.getenv("STRIPE_PUBLISHABLE_KEY")
 STRIPE_ENDPOINT_SECRET = os.getenv("STRIPE_ENDPOINT_SECRET")
 
-# Controllo automatico variabili mancanti
+# Controllo ENV
 missing_env = [k for k, v in {
     "BOT_TOKEN": TOKEN,
     "ADMIN_ID": ADMIN_ID,
     "STRIPE_SECRET_KEY": STRIPE_SECRET_KEY,
-    "STRIPE_PUBLISHABLE_KEY": STRIPE_PUBLISHABLE_KEY,
     "STRIPE_ENDPOINT_SECRET": STRIPE_ENDPOINT_SECRET
 }.items() if not v]
 if missing_env:
@@ -31,7 +29,7 @@ app = Flask(__name__)
 stripe.api_key = STRIPE_SECRET_KEY
 
 # ===========================
-#   PRODOTTI E PREZZI
+#   PRODOTTI
 # ===========================
 PRODUCTS = {
     "zafferano": {
@@ -45,11 +43,10 @@ PRODUCTS = {
         "100g": 600
     }
 }
-
 user_cart = {}
 
 # ===========================
-#   FUNZIONI DI SUPPORTO
+#   FUNZIONI
 # ===========================
 def get_price(product, qty):
     return PRODUCTS[product][qty]
@@ -68,7 +65,7 @@ def format_cart(chat_id):
     return text, total
 
 # ===========================
-#   COMANDI DEL BOT
+#   COMANDI BOT
 # ===========================
 @bot.message_handler(commands=['start'])
 def start(message):
@@ -76,16 +73,16 @@ def start(message):
     user_cart[chat_id] = []
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     markup.add("/shop", "/cart", "/info", "/contacts")
-    bot.send_message(chat_id, "👋 Benvenuto nel nostro shop di Zafferano! Scegli un'opzione:", reply_markup=markup)
+    bot.send_message(chat_id, "👋 Benvenuto! Scegli un'opzione:", reply_markup=markup)
 
 @bot.message_handler(commands=['shop'])
 def shop(message):
     chat_id = message.chat.id
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     for qty in PRODUCTS["zafferano"]:
-        markup.add(f"{qty}")
+        markup.add(qty)
     markup.add("⬅️ Indietro")
-    bot.send_message(chat_id, "🌿 Scegli la quantità di zafferano:", reply_markup=markup)
+    bot.send_message(chat_id, "🌿 Scegli la quantità:", reply_markup=markup)
 
 @bot.message_handler(commands=['cart'])
 def show_cart(message):
@@ -100,20 +97,6 @@ def show_cart(message):
         )
     bot.send_message(chat_id, text, parse_mode="Markdown", reply_markup=markup)
 
-@bot.message_handler(commands=['info'])
-def info(message):
-    text = "ℹ️ *Zafferano 100% italiano 🇮🇹*\n\n💰 *Prezzi:*\n"
-    for qty, price in PRODUCTS["zafferano"].items():
-        text += f"- {qty}: {price}€\n"
-    bot.send_message(message.chat.id, text, parse_mode="Markdown")
-
-@bot.message_handler(commands=['contacts'])
-def contacts(message):
-    bot.send_message(message.chat.id, "📞 *Contatti:*\n\nTelegram: @SlyanuS7\nEmail: brandingshopy@gmail.com\nInstagram: 1.chr_9", parse_mode="Markdown")
-
-# ===========================
-#   SELEZIONE QUANTITÀ
-# ===========================
 @bot.message_handler(func=lambda m: m.text in PRODUCTS["zafferano"] or m.text == "⬅️ Indietro")
 def select_quantity(message):
     chat_id = message.chat.id
@@ -137,36 +120,37 @@ def callback_inline(call):
         bot.send_photo(
             chat_id,
             "https://upload.wikimedia.org/wikipedia/commons/b/b5/PayPal.svg",
-            caption=f"💸 *Pagamento con PayPal*\n\n➡️ [Clicca qui per pagare]({paypal_url})\n\n⚠️ Invia *esattamente {total}€* per completare l’ordine.",
+            caption=f"💸 *Pagamento PayPal*\n\n➡️ [Paga qui]({paypal_url})\n\n⚠️ Invia *esattamente {total}€*.",
             parse_mode="Markdown"
         )
 
     elif call.data == "card_payment":
-        line_items = []
-        for item in user_cart.get(chat_id, []):
-            line_items.append({
+        try:
+            line_items = [{
                 'price_data': {
                     'currency': 'eur',
                     'product_data': {'name': f"{item['product'].capitalize()} {item['qty']}"},
                     'unit_amount': get_price(item['product'], item['qty']) * 100,
                 },
                 'quantity': 1,
-            })
+            } for item in user_cart.get(chat_id, [])]
 
-        session = stripe.checkout.Session.create(
-            payment_method_types=['card'],
-            line_items=line_items,
-            mode='payment',
-            success_url='https://telegram-bot-sohm.onrender.com/success',
-            cancel_url='https://telegram-bot-sohm.onrender.com/cancel',
-        )
+            session = stripe.checkout.Session.create(
+                payment_method_types=['card'],
+                line_items=line_items,
+                mode='payment',
+                success_url='https://telegram-bot-sohm.onrender.com/success',
+                cancel_url='https://telegram-bot-sohm.onrender.com/cancel',
+            )
 
-        bot.send_photo(
-            chat_id,
-            "https://files.stripe.com/docs/stripe_logo.png",
-            caption=f"💳 *Pagamento con Carta (Stripe)*\n\n➡️ [Paga in modo sicuro qui]({session.url})\n\n⚠️ Paga *esattamente {total}€* per completare l’ordine.",
-            parse_mode="Markdown"
-        )
+            bot.send_photo(
+                chat_id,
+                "https://files.stripe.com/docs/stripe_logo.png",
+                caption=f"💳 *Pagamento con Carta*\n\n➡️ [Paga in sicurezza]({session.url})\n\n⚠️ Paga *esattamente {total}€*.",
+                parse_mode="Markdown"
+            )
+        except Exception as e:
+            bot.send_message(chat_id, f"❌ Errore nel pagamento: {str(e)}")
 
 # ===========================
 #   FLASK SERVER
@@ -184,11 +168,11 @@ def telegram_webhook():
 
 @app.route("/success")
 def success_page():
-    return "<h2>✅ Pagamento completato con successo! Grazie per l'acquisto 🌸</h2>"
+    return "<h2>✅ Pagamento completato con successo!</h2>"
 
 @app.route("/cancel")
 def cancel_page():
-    return "<h2>❌ Pagamento annullato. Puoi riprovare dal bot.</h2>"
+    return "<h2>❌ Pagamento annullato.</h2>"
 
 @app.route("/stripe-webhook", methods=["POST"])
 def stripe_webhook():
@@ -196,17 +180,18 @@ def stripe_webhook():
     sig_header = request.headers.get('Stripe-Signature')
     try:
         event = stripe.Webhook.construct_event(payload, sig_header, STRIPE_ENDPOINT_SECRET)
-    except Exception:
+    except Exception as e:
+        print(f"⚠️ Errore webhook Stripe: {e}")
         return jsonify(success=False), 400
 
     if event['type'] == 'checkout.session.completed':
         session = event['data']['object']
         now = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-        bot.send_message(ADMIN_ID, f"✅ *Pagamento ricevuto su Stripe!*\n💰 Totale: {session['amount_total']/100}€\n🕒 {now}", parse_mode="Markdown")
+        bot.send_message(ADMIN_ID, f"✅ Pagamento ricevuto!\n💰 Totale: {session['amount_total']/100}€\n🕒 {now}")
     return jsonify(success=True), 200
 
 # ===========================
-#   IMPOSTA WEBHOOK
+#   WEBHOOK TELEGRAM
 # ===========================
 WEBHOOK_URL = "https://telegram-bot-sohm.onrender.com"
 bot.remove_webhook()
