@@ -155,7 +155,7 @@ def callback_inline(call):
 
         bot.send_photo(
             chat_id,
-            "https://upload.wikimedia.org/wikipedia/commons/3/3d/Stripe_logo%2C_revised_2016.svg",
+            "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f0/Stripe_logo_2014.png/800px-Stripe_logo_2014.png",
             caption=f"💳 *Pagamento con Carta (Stripe)*\n\n👉 [Clicca qui per pagare in modo sicuro]({session.url})\n\n⚠️ Paga *esattamente {total}€* per completare l'ordine.",
             parse_mode="Markdown"
         )
