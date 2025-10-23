@@ -149,33 +149,25 @@ def callback_query(call):
             bot.send_message(chat_id, f"❌ Errore durante la creazione del pagamento: {e}")
 
 # ===========================
-#   Flask Routes
+#   Flask server
 # ===========================
 @app.route("/", methods=["GET"])
 def index():
     return "Bot is running!", 200
 
-@app.route("/webhook", methods=["POST"])
-def webhook():
-    payload = request.data
-    sig_header = request.headers.get('stripe-signature')
-    try:
-        event = stripe.Webhook.construct_event(payload, sig_header, ENDPOINT_SECRET)
-    except Exception as e:
-        return jsonify(success=False, error=str(e)), 400
-
-    if event["type"] == "checkout.session.completed":
-        bot.send_message(ADMIN_ID, "✅ Pagamento completato con Stripe!")
-
-    return jsonify(success=True), 200
+@app.route(f"/webhook/{TOKEN}", methods=["POST"])
+def telegram_webhook():
+    json_data = request.get_json()
+    update = types.Update.de_json(json_data)
+    bot.process_new_updates([update])
+    return "OK", 200
 
 # ===========================
-#   Webhook setup
+#   Set webhook
 # ===========================
-WEBHOOK_URL = os.environ.get("WEBHOOK_URL")
-if WEBHOOK_URL:
-    bot.remove_webhook()
-    bot.set_webhook(url=WEBHOOK_URL)
+WEBHOOK_URL = f"https://telegram-bot-sohm.onrender.com/webhook/{TOKEN}"
+bot.remove_webhook()
+bot.set_webhook(url=WEBHOOK_URL)
 
 # ===========================
 #   Run Flask
