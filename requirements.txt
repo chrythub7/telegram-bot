@@ -1,4 +1,3 @@
-Flask
-stripe
-pyTelegramBotAPI
-requests
+Flask==2.3.2
+stripe==6.3.0
+python-telegram-bot==20.3
